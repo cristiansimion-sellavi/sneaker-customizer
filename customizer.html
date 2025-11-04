@@ -3,18 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Sneaker Customizer 3D — v1.1</title>
+  <title>Sneaker Customizer 3D — LEGACY</title>
   <style>
-    :root{
-      --bg:#f5f5f7; --panel:#fff; --ink:#111; --muted:#777; --line:#e8e8e8; --acc:#111;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
+    :root{ --bg:#f5f5f7; --panel:#fff; --ink:#111; --muted:#777; --line:#e8e8e8; --acc:#111; }
+    *{box-sizing:border-box} html,body{height:100%}
     body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
     .app{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;padding:14px;max-width:1280px;margin:0 auto}
     .viewer{position:relative;background:linear-gradient(180deg,#fafafa,#f0f0f0);border:1px solid var(--line);border-radius:16px;overflow:hidden}
     .viewer__aspect{position:relative;width:100%;aspect-ratio:16/9;min-height:520px}
-    canvas#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+    #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
     .ctrls{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:3}
     .ctrls button{width:36px;height:36px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer}
     .debug{position:absolute;right:10px;top:10px;background:rgba(0,0,0,.8);color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.2 system-ui;z-index:4}
@@ -87,133 +84,90 @@
     </aside>
   </div>
 
-<script type="module">
-  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-  import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-  import { GLTFLoader }   from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
-  import { DRACOLoader }  from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/DRACOLoader.js';
-  import { KTX2Loader }   from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/KTX2Loader.js';
-  import { RGBELoader }   from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/RGBELoader.js';
+  <!-- Three.js (global) + examples/js (legacy, no modules) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/DRACOLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/KTX2Loader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/RGBELoader.js"></script>
 
+  <script>
+  (function(){
+    const host=document.getElementById('cv');
+    const dbg =document.getElementById('dbg');
+    const say =(m)=>{ dbg.textContent=m; };
 
-
-    /* ---------- UI refs ---------- */
-    const host = document.getElementById('cv');
-    const dbg  = document.getElementById('dbg');
-    const tabs = document.getElementById('tabs');
-    const grid = document.getElementById('grid');
-    const rangeIntensity = document.getElementById('intensity');
-    const rangeTiling    = document.getElementById('tiling');
-    const btnReset       = document.getElementById('btnReset');
-    const btnExport      = document.getElementById('btnExport');
-
-    const say = (m)=>{ dbg.textContent = m; };
-
-    /* ---------- Three core ---------- */
-    const renderer = new THREE.WebGLRenderer({ canvas:host, antialias:true, preserveDrawingBuffer:true });
+    // Core
+    const renderer=new THREE.WebGLRenderer({canvas:host,antialias:true,preserveDrawingBuffer:true});
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf2f2f2);
+    const scene=new THREE.Scene(); scene.background=new THREE.Color(0xf2f2f2);
+    const camera=new THREE.PerspectiveCamera(45,1,0.1,100); camera.position.set(0.8,0.65,1.35);
 
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.set(0.8, 0.65, 1.35);
+    const controls=new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping=true; controls.minDistance=0.6; controls.maxDistance=2.2;
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.minDistance = 0.6;
-    controls.maxDistance = 2.2;
-
-    // Lights + ground
     scene.add(new THREE.HemisphereLight(0xffffff,0xb2b2b2,0.95));
     const d=new THREE.DirectionalLight(0xffffff,0.85); d.position.set(2,3,2); scene.add(d);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(6,6), new THREE.MeshStandardMaterial({color:0xeeeeee, roughness:0.95}));
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(6,6), new THREE.MeshStandardMaterial({color:0xeeeeee, roughness:0.95}));
     ground.rotation.x=-Math.PI/2; ground.position.y=-0.5; scene.add(ground);
 
-    function setSize(){
-      const rect = host.getBoundingClientRect();
-      const w = Math.max(320, rect.width || host.parentElement.clientWidth || 800);
-      const h = Math.max(360, rect.height || w * 9/16);
-      renderer.setSize(w, h, false);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-    }
+    function setSize(){ const r=host.getBoundingClientRect(); const w=Math.max(320,r.width||800); const h=Math.max(360,r.height||w*9/16); renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
     setSize(); addEventListener('resize', setSize);
 
-    // Cub test (îl scoatem după ce urcă modelul)
-    const testCube = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.2,0.2), new THREE.MeshStandardMaterial({color:0x66cc99}));
+    // Cub test (confirmă randarea)
+    const testCube=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.2,0.2), new THREE.MeshStandardMaterial({color:0x66cc99}));
     testCube.position.set(-0.6,0.1,0); scene.add(testCube);
 
-    // Optional: env HDRI
+    // Env (opțional)
     try{
-      const pmrem = new THREE.PMREMGenerator(renderer);
-      new RGBELoader()
+      const pmrem=new THREE.PMREMGenerator(renderer);
+      new THREE.RGBELoader()
         .setPath('https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/equirectangular/')
-        .load('quarry_01_1k.hdr', (hdr)=>{
-          const env = pmrem.fromEquirectangular(hdr).texture;
-          scene.environment = env;
-          hdr.dispose(); pmrem.dispose();
-        }, undefined, ()=>say('HDRI skip (ok)'));
+        .load('quarry_01_1k.hdr', (hdr)=>{ const env=pmrem.fromEquirectangular(hdr).texture; scene.environment=env; hdr.dispose(); pmrem.dispose(); }, undefined, ()=>say('HDRI skip'));
     }catch(_){}
 
-    /* ---------- Loaders ---------- */
-    const gltf = new GLTFLoader();
-    const draco = new DRACOLoader().setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/');
+    // Loaders
+    const gltf=new THREE.GLTFLoader();
+    const draco=new THREE.DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/libs/draco/');
     gltf.setDRACOLoader(draco);
-    const ktx2  = new KTX2Loader().setTranscoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/basis/').detectSupport(renderer);
+    const ktx2 =new THREE.KTX2Loader().setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/libs/basis/').detectSupport(renderer);
     gltf.setKTX2Loader(ktx2);
-    const tLoader = new THREE.TextureLoader(); tLoader.crossOrigin = 'anonymous';
+    const tLoader=new THREE.TextureLoader(); tLoader.crossOrigin='anonymous';
 
-    /* ---------- Model ---------- */
-    const MODEL_URLS = [
-      // ordinea contează – încercăm mai multe surse
+    // Model
+    const MODEL_URLS=[
       'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/models/gltf/MaterialsVariantsShoe/glTF/MaterialsVariantsShoe.gltf',
       'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/MaterialsVariantsShoe/glTF/MaterialsVariantsShoe.gltf',
       'https://threejs.org/examples/models/gltf/MaterialsVariantsShoe/glTF/MaterialsVariantsShoe.gltf'
     ];
+    let shoe=null; let matsIndex={};
 
-    let shoe=null; let matsIndex={}; let parser=null;
-    const PANEL_MATS = {
-      toeCap:['toe','toecap','front','cap'],
-      tongue:['tongue','vamp'],
-      quarterOuter:['outer','quarter_o','side_o'],
-      quarterInner:['inner','quarter_i','side_i'],
-      heel:['heel','counter'],
-      laces:['lace','laces','eyelet','caps'],
-      midsole:['midsole','mid'],
-      sole:['sole','outsole']
-    };
-
-    function fitTo(obj){
-      const box=new THREE.Box3().setFromObject(obj);
-      const c=box.getCenter(new THREE.Vector3());
-      controls.target.copy(c); camera.lookAt(c); controls.update();
-    }
+    function fitTo(obj){ const box=new THREE.Box3().setFromObject(obj); const c=box.getCenter(new THREE.Vector3()); controls.target.copy(c); camera.lookAt(c); controls.update(); }
 
     function loadCandidate(i=0){
-      if(i>=MODEL_URLS.length){ say('Model load failed (CORS/CDN). Vezi consola.'); return; }
+      if(i>=MODEL_URLS.length){ say('Model load failed'); return; }
       say('Loading model…');
       gltf.load(MODEL_URLS[i], (g)=>{
         say('Model OK'); scene.remove(testCube);
-        shoe = g.scene; parser = g.parser;
-        shoe.scale.set(10,10,10);
+        shoe=g.scene; shoe.scale.set(10,10,10);
         shoe.traverse(o=>{
           if(o.isMesh && o.material){
-            o.material = o.material.clone();
-            o.material.metalness=0.05; o.material.roughness=0.8;
+            o.material=o.material.clone(); o.material.metalness=0.05; o.material.roughness=0.8;
             if(o.material.name) matsIndex[o.material.name]=o.material;
-            if(!o.userData.originalMaterial) o.userData.originalMaterial = o.material.clone();
+            if(!o.userData.originalMaterial) o.userData.originalMaterial=o.material.clone();
           }
         });
         scene.add(shoe); fitTo(shoe);
-      }, undefined, (err)=>{ console.warn('GLTF error', err); say('Fallback model…'); loadCandidate(i+1); });
+      }, undefined, ()=>{ say('Fallback…'); loadCandidate(i+1); });
     }
     loadCandidate();
 
-    /* ---------- Swatches (fix: sigur populate) ---------- */
-    const SWATCHES = {
+    // UI: swatch-uri (ca înainte)
+    const SWATCHES={
       toeCap:[
         {id:'piton_alb',name:'PITON ALB',type:'tex',img:'https://images.unsplash.com/photo-1619120238346-978f4a0f5d1e?q=80&w=600&auto=format&fit=crop'},
         {id:'croco_rosu',name:'CROCO ROȘU',type:'tex',img:'https://images.unsplash.com/photo-1607706189992-eae578626c86?q=80&w=600&auto=format&fit=crop'},
@@ -258,114 +212,34 @@
         {id:'sole_gum',name:'Gum',type:'color',color:'#d9b37a'}
       ]
     };
+    const PANEL_MATS={toeCap:['toe','toecap','front','cap'],tongue:['tongue','vamp'],quarterOuter:['outer','quarter_o','side_o'],quarterInner:['inner','quarter_i','side_i'],heel:['heel','counter'],laces:['lace','laces','eyelet','caps'],midsole:['midsole','mid'],sole:['sole','outsole']};
 
-    function findPanelMaterials(key){
-      const names=(PANEL_MATS[key]||[]).map(s=>s.toLowerCase());
-      const hits=[];
-      Object.entries(matsIndex).forEach(([name,mat])=>{
-        const n=name.toLowerCase();
-        if(names.some(k=>n.includes(k))) hits.push(mat);
-      });
-      return hits;
-    }
+    function findPanelMaterials(key){ const names=(PANEL_MATS[key]||[]).map(s=>s.toLowerCase()); const hits=[]; Object.entries(matsIndex).forEach(([name,mat])=>{ const n=name.toLowerCase(); if(names.some(k=>n.includes(k))) hits.push(mat); }); return hits; }
     function clearMaps(m){ m.map=null; m.normalMap=null; m.roughnessMap=null; m.metalnessMap=null; m.needsUpdate=true; }
-    function applyColor(key,hex){
-      findPanelMaterials(key).forEach(m=>{ clearMaps(m); m.color = new THREE.Color(hex); m.needsUpdate=true; });
-    }
-    function applyTexture(key,url,opts={}){
-      const mats=findPanelMaterials(key); if(!mats.length){ say('No materials for '+key); return; }
-      const rep=opts.tiling||1;
-      const tex=tLoader.load(url,()=>{});
-      tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(rep,rep);
-      mats.forEach(m=>{
-        m.map=tex;
-        const tint = new THREE.Color().lerp(new THREE.Color(0xffffff), opts.intensity ?? state.intensity);
-        m.color.copy(tint); m.needsUpdate=true;
-      });
-    }
+    function applyColor(key,hex){ findPanelMaterials(key).forEach(m=>{ clearMaps(m); m.color=new THREE.Color(hex); m.needsUpdate=true; }); }
+    function applyTexture(key,url,opts={}){ const mats=findPanelMaterials(key); if(!mats.length){ say('No materials for '+key); return; } const rep=opts.tiling||1; const tex=(new THREE.TextureLoader()).load(url,()=>{}); tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(rep,rep); mats.forEach(m=>{ m.map=tex; const tint=(new THREE.Color()).lerp(new THREE.Color(0xffffff), opts.intensity ?? state.intensity); m.color.copy(tint); m.needsUpdate=true; }); }
 
-    const state = {
-      panel: 'toeCap',
-      panels: { toeCap:null, tongue:null, quarterOuter:null, quarterInner:null, heel:null, laces:null, midsole:null, sole:null },
-      intensity: parseFloat(rangeIntensity.value),
-      tiling:    parseFloat(rangeTiling.value)
-    };
+    const tabs=document.getElementById('tabs'); const grid=document.getElementById('grid');
+    const rangeIntensity=document.getElementById('intensity'); const rangeTiling=document.getElementById('tiling');
+    const btnReset=document.getElementById('btnReset'); const btnExport=document.getElementById('btnExport');
 
-    function renderSwatches(){
-      grid.innerHTML='';
-      const list = SWATCHES[state.panel] || [];
-      if(!list.length){
-        grid.innerHTML = '<div style="grid-column:1/-1;padding:10px;color:#777">Nicio opțiune pentru acest panou.</div>';
-        return;
-      }
-      list.forEach(sw=>{
-        const card=document.createElement('button'); card.className='sw'; card.type='button';
-        card.innerHTML = sw.type==='tex'
-          ? `<img src="${sw.img}" alt=""><div class="lb">${sw.name}</div>`
-          : `<div style="width:100%;aspect-ratio:1;border-radius:8px;background:${sw.color}"></div><div class="lb">${sw.name}</div>`;
-        card.addEventListener('click', ()=>{
-          if(sw.type==='color'){
-            applyColor(state.panel, sw.color);
-            state.panels[state.panel] = {type:'color', value:sw.color, id:sw.id};
-          }else{
-            applyTexture(state.panel, sw.img, {intensity:state.intensity, tiling:state.tiling});
-            state.panels[state.panel] = {type:'tex', value:sw.img, id:sw.id, tiling:state.tiling, intensity:state.intensity};
-          }
-        });
-        grid.appendChild(card);
-      });
-    }
+    const state={ panel:'toeCap', panels:{toeCap:null,tongue:null,quarterOuter:null,quarterInner:null,heel:null,laces:null,midsole:null,sole:null}, intensity:parseFloat(rangeIntensity.value), tiling:parseFloat(rangeTiling.value) };
+
+    function renderSwatches(){ grid.innerHTML=''; const list=SWATCHES[state.panel]||[]; list.forEach(sw=>{ const b=document.createElement('button'); b.className='sw'; b.type='button'; b.innerHTML= sw.type==='tex' ? `<img src="${sw.img}"><div class="lb">${sw.name}</div>` : `<div style="width:100%;aspect-ratio:1;border-radius:8px;background:${sw.color}"></div><div class="lb">${sw.name}</div>`; b.onclick=()=>{ if(sw.type==='color'){ applyColor(state.panel, sw.color); state.panels[state.panel]={type:'color',value:sw.color,id:sw.id}; } else { applyTexture(state.panel, sw.img, {intensity:state.intensity, tiling:state.tiling}); state.panels[state.panel]={type:'tex',value:sw.img,id:sw.id,tiling:state.tiling,intensity:state.intensity}; } }; grid.appendChild(b); }); }
     renderSwatches();
 
-    tabs.addEventListener('click',(e)=>{
-      const b=e.target.closest('button[data-panel]'); if(!b) return;
-      tabs.querySelectorAll('button').forEach(x=>x.classList.remove('is-active'));
-      b.classList.add('is-active'); state.panel = b.dataset.panel; renderSwatches();
-    });
-    rangeIntensity.addEventListener('input', ()=>{
-      state.intensity = parseFloat(rangeIntensity.value);
-      const p=state.panels[state.panel];
-      if(p && p.type==='tex'){ applyTexture(state.panel,p.value,{intensity:state.intensity, tiling:state.tiling}); }
-    });
-    rangeTiling.addEventListener('input', ()=>{
-      state.tiling = parseFloat(rangeTiling.value);
-      const p=state.panels[state.panel];
-      if(p && p.type==='tex'){ applyTexture(state.panel,p.value,{intensity:state.intensity, tiling:state.tiling}); }
-    });
+    tabs.addEventListener('click',(e)=>{ const b=e.target.closest('button[data-panel]'); if(!b) return; tabs.querySelectorAll('button').forEach(x=>x.classList.remove('is-active')); b.classList.add('is-active'); state.panel=b.dataset.panel; renderSwatches(); });
+    rangeIntensity.addEventListener('input', ()=>{ state.intensity=parseFloat(rangeIntensity.value); const p=state.panels[state.panel]; if(p&&p.type==='tex'){ applyTexture(state.panel,p.value,{intensity:state.intensity, tiling:state.tiling}); }});
+    rangeTiling.addEventListener('input', ()=>{ state.tiling=parseFloat(rangeTiling.value); const p=state.panels[state.panel]; if(p&&p.type==='tex'){ applyTexture(state.panel,p.value,{intensity:state.intensity, tiling:state.tiling}); }});
+    btnReset.onclick=()=>{ if(!shoe) return; shoe.traverse(o=>{ if(o.isMesh && o.userData.originalMaterial){ o.material=o.userData.originalMaterial.clone(); } }); Object.keys(state.panels).forEach(k=>state.panels[k]=null); };
 
-    btnReset.addEventListener('click', ()=>{
-      if(!shoe) return;
-      shoe.traverse(o=>{
-        if(o.isMesh && o.userData.originalMaterial){ o.material = o.userData.originalMaterial.clone(); }
-      });
-      Object.keys(state.panels).forEach(k=>state.panels[k]=null);
-    });
+    document.querySelectorAll('.ctrls [data-act]').forEach(b=>b.addEventListener('click',()=>{ const a=b.getAttribute('data-act'); if(a==='zoom-in')controls.dollyIn(1.15); if(a==='zoom-out')controls.dollyOut(1.15); if(a==='rot-l'&&shoe)shoe.rotateY(0.2); if(a==='rot-r'&&shoe)shoe.rotateY(-0.2); if(a==='reset')controls.reset(); if(a==='snap'){ const data=renderer.domElement.toDataURL('image/png'); const link=document.createElement('a'); link.href=data; link.download='sneaker-preview.png'; link.click(); } }));
 
-    document.querySelectorAll('.ctrls [data-act]').forEach(b=>{
-      b.addEventListener('click', ()=>{
-        const act=b.getAttribute('data-act');
-        if(act==='zoom-in') controls.dollyIn(1.15);
-        if(act==='zoom-out') controls.dollyOut(1.15);
-        if(act==='rot-l' && shoe) shoe.rotateY(0.2);
-        if(act==='rot-r' && shoe) shoe.rotateY(-0.2);
-        if(act==='reset') controls.reset();
-        if(act==='snap'){
-          const dataUrl=renderer.domElement.toDataURL('image/png');
-          const a=document.createElement('a'); a.href=dataUrl; a.download='sneaker-preview.png'; a.click();
-        }
-      });
-    });
+    (function loop(){ requestAnimationFrame(loop); testCube.rotation.y+=0.01; controls.update(); renderer.render(scene,camera); })();
 
-    (function animate(){ requestAnimationFrame(animate); testCube.rotation.y += 0.01; controls.update(); renderer.render(scene,camera); })();
-
-    function sendToParent(){
-      const preview = renderer.domElement.toDataURL('image/png');
-      const payload = { kind:'sneaker-customizer', panels: state.panels, intensity: state.intensity, tiling: state.tiling };
-      window.parent?.postMessage({ type: 'S3D_CUSTOM', preview, payload }, '*');
-      say('Trimis către pagina părinte.');
-      setTimeout(()=>say('OK'),800);
-    }
-    btnExport.addEventListener('click', sendToParent);
+    // postMessage export
+    btnExport.onclick=()=>{ const preview=renderer.domElement.toDataURL('image/png'); const payload={kind:'sneaker-customizer', panels:state.panels, intensity:state.intensity, tiling:state.tiling}; window.parent?.postMessage({type:'S3D_CUSTOM', preview, payload}, '*'); say('Trimis către pagina părinte.'); setTimeout(()=>say('OK'),800); };
+  })();
   </script>
 </body>
 </html>
