@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sneaker Customizer 3D</title>
+  <style>
+    :root{
+      --bg:#f5f5f7; --panel:#fff; --ink:#111; --muted:#777; --line:#e8e8e8;
+      --acc:#111;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .app{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;padding:14px;max-width:1280px;margin:0 auto}
+    .viewer{position:relative;background:linear-gradient(180deg,#fafafa,#f0f0f0);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+    .viewer__aspect{position:relative;width:100%;aspect-ratio:16/9;min-height:520px}
+    canvas#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+    .ctrls{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:3}
+    .ctrls button{width:36px;height:36px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer}
+    .debug{position:absolute;right:10px;top:10px;background:rgba(0,0,0,.7);color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.2 system-ui;display:none;z-index:4}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px}
+    .head h3{margin:0 0 6px;font-size:18px}
+    .head p{margin:0 0 10px;color:var(--muted);font-size:13px}
+    .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+    .tabs button{padding:6px 10px;border:1px solid #ddd;background:#fff;border-radius:999px;font-size:12px;cursor:pointer}
+    .tabs button.is-active{background:var(--acc);color:#fff;border-color:var(--acc)}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-height:420px;overflow:auto;padding-right:2px}
+    .sw{border:1px solid #ddd;border-radius:10px;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px}
+    .sw img{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover}
+    .sw .lb{font-size:11px;color:#333;text-align:center}
+    .sl{margin:12px 0 8px;display:grid;gap:8px}
+    .sl label{font-size:12px;color:#333;display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .sl input{flex:1}
+    .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+    .btn{padding:10px 12px;border:1px solid #ddd;background:#fff;border-radius:10px;cursor:pointer}
+    .btn--pri{background:#111;color:#fff;border-color:#111}
+    .note{font-size:11px;color:#666;margin-top:6px}
+    @media (max-width:1000px){ .app{grid-template-columns:1fr} .viewer__aspect{min-height:420px} }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="viewer">
+      <div class="viewer__aspect">
+        <canvas id="cv"></canvas>
+        <div class="ctrls">
+          <button data-act="zoom-in"  title="Zoom in">＋</button>
+          <button data-act="zoom-out" title="Zoom out">－</button>
+          <button data-act="rot-l"    title="Rotate L">↺</button>
+          <button data-act="rot-r"    title="Rotate R">↻</button>
+          <button data-act="reset"    title="Reset">⟲</button>
+          <button data-act="snap"     title="Snapshot">📸</button>
+        </div>
+        <div id="dbg" class="debug"></div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <header class="head">
+        <h3>Personalizează-ți sneakers-ii</h3>
+        <p>Alege panoul, aplică materialul. La final trimite în coș (preview + JSON).</p>
+      </header>
+
+      <nav class="tabs" id="tabs">
+        <button class="is-active" data-panel="toeCap">VÂRF</button>
+        <button data-panel="tongue">LIMBĂ</button>
+        <button data-panel="quarterOuter">LATERAL EXT.</button>
+        <button data-panel="quarterInner">LATERAL INT.</button>
+        <button data-panel="heel">CĂLCÂI</button>
+        <button data-panel="laces">ȘIRETURI / CAPSE</button>
+        <button data-panel="midsole">MIDSOL</button>
+        <button data-panel="sole">TALPĂ</button>
+      </nav>
+
+      <div id="grid" class="grid"></div>
+
+      <div class="sl">
+        <label>Intensitate textură <input id="intensity" type="range" min="0" max="1" step="0.05" value="0.85"></label>
+        <label>Scală textură <input id="tiling" type="range" min="0.3" max="3" step="0.1" value="1"></label>
+      </div>
+
+      <div class="foot">
+        <button class="btn" id="btnReset">Reset materiale</button>
+        <button class="btn" id="btnExport">Trimite în coș</button>
+      </div>
+      <p class="note">* Se trimite prin <em>postMessage</em> către pagina părinte: preview PNG + JSON (panouri, texturi, culori, slider-e).</p>
+    </aside>
+  </div>
+
+  <!-- Modules moderne din jsm/* -->
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import { GLTFLoader }   from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+    import { DRACOLoader }  from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/DRACOLoader.js';
+    import { KTX2Loader }   from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/KTX2Loader.js';
+    import { RGBELoader }   from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/RGBELoader.js';
+
+    /* ---------- UI refs ---------- */
+    const host = document.getElementById('cv');
+    const dbg  = document.getElementById('dbg');
+    const tabs = document.getElementById('tabs');
+    const grid = document.getElementById('grid');
+    const rangeIntensity = document.getElementById('intensity');
+    const rangeTiling    = document.getElementById('tiling');
+    const btnReset       = document.getElementById('btnReset');
+    const btnExport      = document.getElementById('btnExport');
+
+    const show=(m)=>{ dbg.style.display='block'; dbg.textContent=m; console.warn('[S3D]',m); };
+    const hide=()=>{ dbg.style.display='none'; };
+
+    /* ---------- Three core ---------- */
+    const renderer = new THREE.WebGLRenderer({ canvas:host, antialias:true, preserveDrawingBuffer:true });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf2f2f2);
+
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.set(0.8, 0.65, 1.35);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.minDistance = 0.6;
+    controls.maxDistance = 2.2;
+
+    // Lights + ground
+    scene.add(new THREE.HemisphereLight(0xffffff,0xb2b2b2,0.95));
+    const d=new THREE.DirectionalLight(0xffffff,0.85); d.position.set(2,3,2); scene.add(d);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(6,6), new THREE.MeshStandardMaterial({color:0xeeeeee, roughness:0.95}));
+    ground.rotation.x=-Math.PI/2; ground.position.y=-0.5; scene.add(ground);
+
+    function setSize(){
+      const rect = host.getBoundingClientRect();
+      const w = Math.max(320, rect.width || host.parentElement.clientWidth || 800);
+      const h = Math.max(360, rect.height || w * 9/16);
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    setSize(); addEventListener('resize', setSize);
+
+    // Optional: env HDRI (dacă pică, continuăm fără)
+    try {
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      new RGBELoader()
+        .setPath('https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/equirectangular/')
+        .load('quarry_01_1k.hdr', (hdr)=>{
+          const env = pmrem.fromEquirectangular(hdr).texture;
+          scene.environment = env; hdr.dispose(); pmrem.dispose();
+        }, undefined, ()=>show('HDRI fail (continuăm fără env)'));
+    } catch(_){}
+
+    /* ---------- Loaders ---------- */
+    const gltf = new GLTFLoader();
+    const draco = new DRACOLoader().setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/');
+    gltf.setDRACOLoader(draco);
+    const ktx2  = new KTX2Loader().setTranscoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/basis/').detectSupport(renderer);
+    gltf.setKTX2Loader(ktx2);
+    const tLoader = new THREE.TextureLoader(); tLoader.crossOrigin = 'anonymous';
+
+    /* ---------- Model ---------- */
+    const MODEL_URLS = [
+      'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/models/gltf/MaterialsVariantsShoe/glTF/MaterialsVariantsShoe.gltf',
+      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/MaterialsVariantsShoe/glTF/MaterialsVariantsShoe.gltf',
+    ];
+
+    let shoe=null; let matsIndex={}; let parser=null;
+    const PANEL_MATS = {
+      toeCap:['toe','toecap','front','cap'],
+      tongue:['tongue','vamp'],
+      quarterOuter:['outer','quarter_o','side_o'],
+      quarterInner:['inner','quarter_i','side_i'],
+      heel:['heel','counter'],
+      laces:['lace','laces','eyelet','caps'],
+      midsole:['midsole','mid'],
+      sole:['sole','outsole']
+    };
+
+    function fitTo(obj){
+      const box=new THREE.Box3().setFromObject(obj);
+      const c=box.getCenter(new THREE.Vector3());
+      controls.target.copy(c); camera.lookAt(c); controls.update();
+    }
+
+    function loadCandidate(i=0){
+      if(i>=MODEL_URLS.length){ show('Model load failed (CORS/CDN)'); return; }
+      show('Loading model…');
+      gltf.load(MODEL_URLS[i], (g)=>{
+        hide();
+        shoe = g.scene; parser = g.parser;
+        shoe.scale.set(10,10,10);
+        shoe.traverse(o=>{
+          if(o.isMesh && o.material){
+            o.material = o.material.clone();
+            o.material.metalness=0.05; o.material.roughness=0.8;
+            if(o.material.name) matsIndex[o.material.name]=o.material;
+          }
+        });
+        scene.add(shoe); fitTo(shoe);
+      }, undefined, ()=>{ show('Fallback source…'); loadCandidate(i+1); });
+    }
+    loadCandidate();
+
+    /* ---------- Swatches ---------- */
+    const SWATCHES = {
+      toeCap:[
+        {id:'piton_alb',name:'PITON ALB',type:'tex',img:'https://images.unsplash.com/photo-1619120238346-978f4a0f5d1e?q=80&w=600&auto=format&fit=crop'},
+        {id:'croco_rosu',name:'CROCO ROȘU',type:'tex',img:'https://images.unsplash.com/photo-1607706189992-eae578626c86?q=80&w=600&auto=format&fit=crop'},
+        {id:'bizon',name:'BIZON NEGRU',type:'tex',img:'https://images.unsplash.com/photo-1542834759-30bc5c9d3b8f?q=80&w=600&auto=format&fit=crop'},
+        {id:'alb',name:'Alb',type:'color',color:'#f6f6f6'},
+        {id:'negru',name:'Negru',type:'color',color:'#111111'}
+      ],
+      tongue:[
+        {id:'croc_alb',name:'CROCO ALB',type:'tex',img:'https://images.unsplash.com/photo-1542345812-d98b5cd6cf98?q=80&w=600&auto=format&fit=crop'},
+        {id:'roz',name:'PITON ROZ',type:'tex',img:'https://images.unsplash.com/photo-1556228578-8b59b1a7a5c5?q=80&w=600&auto=format&fit=crop'},
+        {id:'white',name:'Alb',type:'color',color:'#ffffff'},
+        {id:'black',name:'Negru',type:'color',color:'#111111'}
+      ],
+      quarterOuter:[
+        {id:'sarpe_blue',name:'ȘARPE ALBASTRU',type:'tex',img:'https://images.unsplash.com/photo-1520975922284-85d9c4aee6cf?q=80&w=600&auto=format&fit=crop'},
+        {id:'piton_yellow',name:'PITON GALBEN',type:'tex',img:'https://images.unsplash.com/photo-1520975659010-2f3c5c2fb8b0?q=80&w=600&auto=format&fit=crop'},
+        {id:'gri',name:'Gri',type:'color',color:'#cfcfcf'}
+      ],
+      quarterInner:[
+        {id:'piton_alb2',name:'PITON ALB 2',type:'tex',img:'https://images.unsplash.com/photo-1536305030431-0f61197f7e4e?q=80&w=600&auto=format&fit=crop'},
+        {id:'bizon_neg',name:'Bizon Negru',type:'tex',img:'https://images.unsplash.com/photo-1610121892004-9b48e2d01712?q=80&w=600&auto=format&fit=crop'},
+        {id:'white2',name:'Alb',type:'color',color:'#fefefe'}
+      ],
+      heel:[
+        {id:'bizon_h',name:'Bizon Negru',type:'tex',img:'https://images.unsplash.com/photo-1542834759-30bc5c9d3b8f?q=80&w=600&auto=format&fit=crop'},
+        {id:'white_h',name:'Alb',type:'color',color:'#ffffff'},
+        {id:'gold',name:'Auriu',type:'color',color:'#caa760'}
+      ],
+      laces:[
+        {id:'laces_w',name:'Șiret Alb',type:'color',color:'#f7f7f7'},
+        {id:'laces_b',name:'Șiret Negru',type:'color',color:'#222222'},
+        {id:'laces_g',name:'Șiret Gri',type:'color',color:'#aaaaaa'}
+      ],
+      midsole:[
+        {id:'mid_w',name:'Alb',type:'color',color:'#f8f8f8'},
+        {id:'mid_gum',name:'Gum',type:'color',color:'#e7c08e'},
+        {id:'mid_b',name:'Negru',type:'color',color:'#1a1a1a'}
+      ],
+      sole:[
+        {id:'sole_w',name:'Alb',type:'color',color:'#ffffff'},
+        {id:'sole_b',name:'Negru',type:'color',color:'#101010'},
+        {id:'sole_gum',name:'Gum',type:'color',color:'#d9b37a'}
+      ]
+    };
+
+    /* ---------- Material helpers ---------- */
+    function findPanelMaterials(key){
+      const names=(PANEL_MATS[key]||[]).map(s=>s.toLowerCase());
+      const hits=[];
+      Object.entries(matsIndex).forEach(([name,mat])=>{
+        const n=name.toLowerCase();
+        if(names.some(k=>n.includes(k))) hits.push(mat);
+      });
+      return hits;
+    }
+    function clearMaps(m){ m.map=null; m.normalMap=null; m.roughnessMap=null; m.metalnessMap=null; m.needsUpdate=true; }
+    function applyColor(key,hex){
+      findPanelMaterials(key).forEach(m=>{ clearMaps(m); m.color = new THREE.Color(hex); m.needsUpdate=true; });
+    }
+    function applyTexture(key,url,opts={}){
+      const mats=findPanelMaterials(key); if(!mats.length){ show('No materials for '+key); setTimeout(hide,2000); return; }
+      const rep=opts.tiling||1;
+      const tex=tLoader.load(url,()=>{});
+      tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(rep,rep);
+      mats.forEach(m=>{
+        m.map=tex;
+        const tint = new THREE.Color().lerp(new THREE.Color(0xffffff), opts.intensity ?? state.intensity);
+        m.color.copy(tint); m.needsUpdate=true;
+      });
+    }
+
+    /* ---------- State + UI ---------- */
+    const state = {
+      panel: 'toeCap',
+      panels: { toeCap:null, tongue:null, quarterOuter:null, quarterInner:null, heel:null, laces:null, midsole:null, sole:null },
+      intensity: parseFloat(rangeIntensity.value),
+      tiling:    parseFloat(rangeTiling.value)
+    };
+
+    function renderSwatches(){
+      grid.innerHTML='';
+      (SWATCHES[state.panel]||[]).forEach(sw=>{
+        const card=document.createElement('button'); card.className='sw'; card.type='button';
+        card.innerHTML = sw.type==='tex'
+          ? `<img src="${sw.img}" alt=""><div class="lb">${sw.name}</div>`
+          : `<div style="width:100%;aspect-ratio:1;border-radius:8px;background:${sw.color}"></div><div class="lb">${sw.name}</div>`;
+        card.addEventListener('click', ()=>{
+          if(sw.type==='color'){
+            applyColor(state.panel, sw.color);
+            state.panels[state.panel] = {type:'color', value:sw.color, id:sw.id};
+          }else{
+            applyTexture(state.panel, sw.img, {intensity:state.intensity, tiling:state.tiling});
+            state.panels[state.panel] = {type:'tex', value:sw.img, id:sw.id, tiling:state.tiling, intensity:state.intensity};
+          }
+        });
+        grid.appendChild(card);
+      });
+    }
+    renderSwatches();
+
+    tabs.addEventListener('click',(e)=>{
+      const b=e.target.closest('button[data-panel]'); if(!b) return;
+      tabs.querySelectorAll('button').forEach(x=>x.classList.remove('is-active'));
+      b.classList.add('is-active'); state.panel = b.dataset.panel; renderSwatches();
+    });
+    rangeIntensity.addEventListener('input', ()=>{
+      state.intensity = parseFloat(rangeIntensity.value);
+      const p=state.panels[state.panel];
+      if(p && p.type==='tex'){ applyTexture(state.panel,p.value,{intensity:state.intensity, tiling:state.tiling}); }
+    });
+    rangeTiling.addEventListener('input', ()=>{
+      state.tiling = parseFloat(rangeTiling.value);
+      const p=state.panels[state.panel];
+      if(p && p.type==='tex'){ applyTexture(state.panel,p.value,{intensity:state.intensity, tiling:state.tiling}); }
+    });
+
+    btnReset.addEventListener('click', ()=>{
+      // revenim la materialele originale (dacă le-am salvat)
+      if(!shoe) return;
+      shoe.traverse(o=>{
+        if(o.isMesh && o.userData.originalMaterial){ o.material = o.userData.originalMaterial; }
+      });
+      Object.keys(state.panels).forEach(k=>state.panels[k]=null);
+    });
+
+    // Controls
+    document.querySelectorAll('.ctrls [data-act]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const act=b.getAttribute('data-act');
+        if(act==='zoom-in') controls.dollyIn(1.15);
+        if(act==='zoom-out') controls.dollyOut(1.15);
+        if(act==='rot-l' && shoe) shoe.rotateY(0.2);
+        if(act==='rot-r' && shoe) shoe.rotateY(-0.2);
+        if(act==='reset') controls.reset();
+        if(act==='snap'){
+          const dataUrl=renderer.domElement.toDataURL('image/png');
+          const a=document.createElement('a'); a.href=dataUrl; a.download='sneaker-preview.png'; a.click();
+        }
+      });
+    });
+
+    // Loop
+    (function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene,camera); })();
+
+    /* ---------- Export către pagina părinte ---------- */
+    function sendToParent(){
+      // pregătește un payload prietenos: preview + JSON cu tot
+      const preview = renderer.domElement.toDataURL('image/png');
+      const payload = {
+        kind: 'sneaker-customizer',
+        panels: state.panels,
+        intensity: state.intensity,
+        tiling: state.tiling
+      };
+      window.parent?.postMessage({ type: 'S3D_CUSTOM', preview, payload }, '*');
+      show('Trimis în pagina părinte (postMessage).'); setTimeout(hide,1500);
+    }
+    btnExport.addEventListener('click', sendToParent);
+
+    /* ---------- Quality-of-life: salvează materialele originale ---------- */
+    // După ce încărcăm modelul, marcăm materialele originale (ca să putem reseta corect)
+    const _orig = new MutationObserver(()=>{
+      if(!shoe) return;
+      shoe.traverse(o=>{
+        if(o.isMesh && o.material && !o.userData.originalMaterial){
+          o.userData.originalMaterial = o.material.clone();
+        }
+      });
+    });
+    _orig.observe(document.body, {subtree:true, childList:true});
+  </script>
+</body>
+</html>
