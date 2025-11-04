@@ -3,14 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Sneaker Customizer 3D</title>
+  <title>Sneaker Customizer 3D — v1.1</title>
   <style>
-    :root{
-      --bg:#f5f5f7; --panel:#fff; --ink:#111; --muted:#777; --line:#e8e8e8;
-      --acc:#111;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
+    :root{ --bg:#f5f5f7; --panel:#fff; --ink:#111; --muted:#777; --line:#e8e8e8; --acc:#111; }
+    *{box-sizing:border-box} html,body{height:100%}
     body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
     .app{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;padding:14px;max-width:1280px;margin:0 auto}
     .viewer{position:relative;background:linear-gradient(180deg,#fafafa,#f0f0f0);border:1px solid var(--line);border-radius:16px;overflow:hidden}
@@ -18,14 +14,14 @@
     canvas#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
     .ctrls{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:3}
     .ctrls button{width:36px;height:36px;border-radius:9px;border:1px solid #ddd;background:#fff;cursor:pointer}
-    .debug{position:absolute;right:10px;top:10px;background:rgba(0,0,0,.7);color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.2 system-ui;display:none;z-index:4}
+    .debug{position:absolute;right:10px;top:10px;background:rgba(0,0,0,.8);color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.2 system-ui;z-index:4}
     .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px}
     .head h3{margin:0 0 6px;font-size:18px}
     .head p{margin:0 0 10px;color:var(--muted);font-size:13px}
     .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
     .tabs button{padding:6px 10px;border:1px solid #ddd;background:#fff;border-radius:999px;font-size:12px;cursor:pointer}
     .tabs button.is-active{background:var(--acc);color:#fff;border-color:var(--acc)}
-    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-height:420px;overflow:auto;padding-right:2px}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-height:420px;overflow:auto;padding-right:2px;min-height:120px;background:#fff;border:1px dashed #eee;border-radius:12px}
     .sw{border:1px solid #ddd;border-radius:10px;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px}
     .sw img{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover}
     .sw .lb{font-size:11px;color:#333;text-align:center}
@@ -52,7 +48,7 @@
           <button data-act="reset"    title="Reset">⟲</button>
           <button data-act="snap"     title="Snapshot">📸</button>
         </div>
-        <div id="dbg" class="debug"></div>
+        <div id="dbg" class="debug">Booting…</div>
       </div>
     </section>
 
@@ -82,13 +78,12 @@
 
       <div class="foot">
         <button class="btn" id="btnReset">Reset materiale</button>
-        <button class="btn" id="btnExport">Trimite în coș</button>
+        <button class="btn btn--pri" id="btnExport">Trimite în coș</button>
       </div>
       <p class="note">* Se trimite prin <em>postMessage</em> către pagina părinte: preview PNG + JSON (panouri, texturi, culori, slider-e).</p>
     </aside>
   </div>
 
-  <!-- Modules moderne din jsm/* -->
   <script type="module">
     import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
     import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
@@ -107,8 +102,7 @@
     const btnReset       = document.getElementById('btnReset');
     const btnExport      = document.getElementById('btnExport');
 
-    const show=(m)=>{ dbg.style.display='block'; dbg.textContent=m; console.warn('[S3D]',m); };
-    const hide=()=>{ dbg.style.display='none'; };
+    const say = (m)=>{ dbg.textContent = m; };
 
     /* ---------- Three core ---------- */
     const renderer = new THREE.WebGLRenderer({ canvas:host, antialias:true, preserveDrawingBuffer:true });
@@ -143,16 +137,21 @@
     }
     setSize(); addEventListener('resize', setSize);
 
-    // Optional: env HDRI (dacă pică, continuăm fără)
-    try {
+    // Cub test (îl scoatem după ce urcă modelul)
+    const testCube = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.2,0.2), new THREE.MeshStandardMaterial({color:0x66cc99}));
+    testCube.position.set(-0.6,0.1,0); scene.add(testCube);
+
+    // Optional: env HDRI
+    try{
       const pmrem = new THREE.PMREMGenerator(renderer);
       new RGBELoader()
         .setPath('https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/textures/equirectangular/')
         .load('quarry_01_1k.hdr', (hdr)=>{
           const env = pmrem.fromEquirectangular(hdr).texture;
-          scene.environment = env; hdr.dispose(); pmrem.dispose();
-        }, undefined, ()=>show('HDRI fail (continuăm fără env)'));
-    } catch(_){}
+          scene.environment = env;
+          hdr.dispose(); pmrem.dispose();
+        }, undefined, ()=>say('HDRI skip (ok)'));
+    }catch(_){}
 
     /* ---------- Loaders ---------- */
     const gltf = new GLTFLoader();
@@ -164,8 +163,10 @@
 
     /* ---------- Model ---------- */
     const MODEL_URLS = [
+      // ordinea contează – încercăm mai multe surse
       'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/models/gltf/MaterialsVariantsShoe/glTF/MaterialsVariantsShoe.gltf',
       'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/MaterialsVariantsShoe/glTF/MaterialsVariantsShoe.gltf',
+      'https://threejs.org/examples/models/gltf/MaterialsVariantsShoe/glTF/MaterialsVariantsShoe.gltf'
     ];
 
     let shoe=null; let matsIndex={}; let parser=null;
@@ -187,10 +188,10 @@
     }
 
     function loadCandidate(i=0){
-      if(i>=MODEL_URLS.length){ show('Model load failed (CORS/CDN)'); return; }
-      show('Loading model…');
+      if(i>=MODEL_URLS.length){ say('Model load failed (CORS/CDN). Vezi consola.'); return; }
+      say('Loading model…');
       gltf.load(MODEL_URLS[i], (g)=>{
-        hide();
+        say('Model OK'); scene.remove(testCube);
         shoe = g.scene; parser = g.parser;
         shoe.scale.set(10,10,10);
         shoe.traverse(o=>{
@@ -198,14 +199,15 @@
             o.material = o.material.clone();
             o.material.metalness=0.05; o.material.roughness=0.8;
             if(o.material.name) matsIndex[o.material.name]=o.material;
+            if(!o.userData.originalMaterial) o.userData.originalMaterial = o.material.clone();
           }
         });
         scene.add(shoe); fitTo(shoe);
-      }, undefined, ()=>{ show('Fallback source…'); loadCandidate(i+1); });
+      }, undefined, (err)=>{ console.warn('GLTF error', err); say('Fallback model…'); loadCandidate(i+1); });
     }
     loadCandidate();
 
-    /* ---------- Swatches ---------- */
+    /* ---------- Swatches (fix: sigur populate) ---------- */
     const SWATCHES = {
       toeCap:[
         {id:'piton_alb',name:'PITON ALB',type:'tex',img:'https://images.unsplash.com/photo-1619120238346-978f4a0f5d1e?q=80&w=600&auto=format&fit=crop'},
@@ -252,7 +254,6 @@
       ]
     };
 
-    /* ---------- Material helpers ---------- */
     function findPanelMaterials(key){
       const names=(PANEL_MATS[key]||[]).map(s=>s.toLowerCase());
       const hits=[];
@@ -267,7 +268,7 @@
       findPanelMaterials(key).forEach(m=>{ clearMaps(m); m.color = new THREE.Color(hex); m.needsUpdate=true; });
     }
     function applyTexture(key,url,opts={}){
-      const mats=findPanelMaterials(key); if(!mats.length){ show('No materials for '+key); setTimeout(hide,2000); return; }
+      const mats=findPanelMaterials(key); if(!mats.length){ say('No materials for '+key); return; }
       const rep=opts.tiling||1;
       const tex=tLoader.load(url,()=>{});
       tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(rep,rep);
@@ -278,7 +279,6 @@
       });
     }
 
-    /* ---------- State + UI ---------- */
     const state = {
       panel: 'toeCap',
       panels: { toeCap:null, tongue:null, quarterOuter:null, quarterInner:null, heel:null, laces:null, midsole:null, sole:null },
@@ -288,7 +288,12 @@
 
     function renderSwatches(){
       grid.innerHTML='';
-      (SWATCHES[state.panel]||[]).forEach(sw=>{
+      const list = SWATCHES[state.panel] || [];
+      if(!list.length){
+        grid.innerHTML = '<div style="grid-column:1/-1;padding:10px;color:#777">Nicio opțiune pentru acest panou.</div>';
+        return;
+      }
+      list.forEach(sw=>{
         const card=document.createElement('button'); card.className='sw'; card.type='button';
         card.innerHTML = sw.type==='tex'
           ? `<img src="${sw.img}" alt=""><div class="lb">${sw.name}</div>`
@@ -324,15 +329,13 @@
     });
 
     btnReset.addEventListener('click', ()=>{
-      // revenim la materialele originale (dacă le-am salvat)
       if(!shoe) return;
       shoe.traverse(o=>{
-        if(o.isMesh && o.userData.originalMaterial){ o.material = o.userData.originalMaterial; }
+        if(o.isMesh && o.userData.originalMaterial){ o.material = o.userData.originalMaterial.clone(); }
       });
       Object.keys(state.panels).forEach(k=>state.panels[k]=null);
     });
 
-    // Controls
     document.querySelectorAll('.ctrls [data-act]').forEach(b=>{
       b.addEventListener('click', ()=>{
         const act=b.getAttribute('data-act');
@@ -348,35 +351,16 @@
       });
     });
 
-    // Loop
-    (function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene,camera); })();
+    (function animate(){ requestAnimationFrame(animate); testCube.rotation.y += 0.01; controls.update(); renderer.render(scene,camera); })();
 
-    /* ---------- Export către pagina părinte ---------- */
     function sendToParent(){
-      // pregătește un payload prietenos: preview + JSON cu tot
       const preview = renderer.domElement.toDataURL('image/png');
-      const payload = {
-        kind: 'sneaker-customizer',
-        panels: state.panels,
-        intensity: state.intensity,
-        tiling: state.tiling
-      };
+      const payload = { kind:'sneaker-customizer', panels: state.panels, intensity: state.intensity, tiling: state.tiling };
       window.parent?.postMessage({ type: 'S3D_CUSTOM', preview, payload }, '*');
-      show('Trimis în pagina părinte (postMessage).'); setTimeout(hide,1500);
+      say('Trimis către pagina părinte.');
+      setTimeout(()=>say('OK'),800);
     }
     btnExport.addEventListener('click', sendToParent);
-
-    /* ---------- Quality-of-life: salvează materialele originale ---------- */
-    // După ce încărcăm modelul, marcăm materialele originale (ca să putem reseta corect)
-    const _orig = new MutationObserver(()=>{
-      if(!shoe) return;
-      shoe.traverse(o=>{
-        if(o.isMesh && o.material && !o.userData.originalMaterial){
-          o.userData.originalMaterial = o.material.clone();
-        }
-      });
-    });
-    _orig.observe(document.body, {subtree:true, childList:true});
   </script>
 </body>
 </html>
